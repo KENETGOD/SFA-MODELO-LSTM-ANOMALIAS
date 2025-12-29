@@ -1,4 +1,3 @@
-# SFA-MODELO-LSTM-ANOMALIAS
 # 🛡️ Sistema de Detección de Anomalías en Logs Web
 
 Sistema automatizado de detección de anomalías en logs de Apache mediante **Deep Learning (LSTM Autoencoder)**. Desarrollado para el Sistema de Gobierno Digital.
@@ -574,5 +573,7 @@ for i in {1..50}; do docker-compose exec capturador bash -c "echo '192.168.1.$i 
 ---
 
 Desarrollado con ❤️ para ciberseguridad gubernamental
+
+</div>
 
 
