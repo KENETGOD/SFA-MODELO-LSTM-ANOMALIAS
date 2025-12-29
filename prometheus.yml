@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'capturador_network'
+    static_configs:
+      - targets: ['capturador:8000']  # Cambio de host.docker.internal a nombre del servicio
+        labels:
+          service: 'log_anomaly_detector'
