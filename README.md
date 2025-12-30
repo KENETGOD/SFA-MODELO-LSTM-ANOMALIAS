@@ -751,9 +751,8 @@ anomaly-detection-logs/
 
 ## 👤 Autor
 
-**[Tu Nombre]**  
+**KENET**  
 Residencias Profesionales - Sistema de Gobierno Digital  
-📧 tu-email@example.com
 
 ---
 
