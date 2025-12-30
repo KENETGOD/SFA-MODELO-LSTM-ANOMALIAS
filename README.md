@@ -124,7 +124,7 @@ nano docker-compose.yml
 
 ```bash
 # Construir imágenes y levantar todos los servicios
-docker-compose up -d --build
+sudo docker compose up -d --build
 
 # Esperar 30 segundos a que todo inicie
 sleep 30
