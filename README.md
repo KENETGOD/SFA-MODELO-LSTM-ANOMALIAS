@@ -86,11 +86,11 @@ sudo usermod -aG docker $USER
 newgrp docker
 
 # Instalar Docker Compose
-sudo apt install docker-compose -y
+sudo apt install docker-compose-plugin
 
 # Verificar instalación
 docker --version
-docker-compose --version
+docker compose version
 ```
 
 ### Paso 3: Clonar el Proyecto
