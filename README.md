@@ -46,7 +46,7 @@ docker-compose --version
 
 ```bash
 # Clonar repositorio
-git clone https://github.com/tu-usuario/anomaly-detection-logs.git
+git clone https://github.com/KENETGOD/SFA-MODELO-LSTM-ANOMALIAS.git
 cd anomaly-detection-logs
 
 # Verificar archivos del modelo
