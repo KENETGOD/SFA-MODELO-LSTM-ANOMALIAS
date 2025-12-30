@@ -20,7 +20,58 @@ Sistema automatizado de detección de anomalías en logs de Apache mediante **De
 
 ## 🚀 Despliegue Completo
 
-### Paso 1: Instalar Docker
+### Paso 1: Instalar y Configurar Apache
+
+```bash
+# Verificar si Apache está instalado
+apache2 -v
+
+# Si no está instalado, instalarlo
+sudo apt update
+sudo apt install apache2 -y
+
+# Iniciar y habilitar Apache
+sudo systemctl start apache2
+sudo systemctl enable apache2
+
+# Verificar estado
+sudo systemctl status apache2
+
+# Verificar que Apache está corriendo
+curl -I http://localhost
+# Debe responder: HTTP/1.1 200 OK
+```
+
+#### Verificar Logs de Apache
+
+```bash
+# Verificar que el archivo de logs existe
+ls -lh /var/log/apache2/access.log
+
+# Ver últimas líneas del log
+sudo tail -f /var/log/apache2/access.log
+
+# Si el archivo no existe o está vacío, generar tráfico
+curl http://localhost/
+curl http://localhost/index.html
+curl http://localhost/test
+
+# Verificar que se generaron logs
+sudo tail -5 /var/log/apache2/access.log
+```
+
+#### Dar Permisos al Archivo de Logs
+
+```bash
+# El contenedor Docker necesita leer el archivo
+sudo chmod 644 /var/log/apache2/access.log
+
+# Verificar permisos
+ls -l /var/log/apache2/access.log
+# Debe mostrar: -rw-r--r--
+```
+
+### Paso 2: Instalar Docker
 
 ```bash
 # Actualizar sistema
@@ -42,18 +93,34 @@ docker --version
 docker-compose --version
 ```
 
-### Paso 2: Clonar el Proyecto
+### Paso 3: Clonar el Proyecto
 
 ```bash
 # Clonar repositorio
 git clone https://github.com/KENETGOD/SFA-MODELO-LSTM-ANOMALIAS.git
-cd anomaly-detection-logs
+cd SFA-MODELO-LSTM-ANOMALIAS/
 
 # Verificar archivos del modelo
-ls -lh modelo_logs_3.h5 scaler_logs_3.joblib encoders_logs_3.joblib
+ls -lh modelo_logs_1.h5 scaler_logs_1.joblib encoders_logs_1.joblib
 ```
 
-### Paso 3: Construir y Levantar Servicios
+### Paso 4: Configurar Ruta de Logs
+
+```bash
+# Editar docker-compose.yml para apuntar a tus logs de Apache
+nano docker-compose.yml
+
+# Verificar la línea de volúmenes del servicio 'capturador':
+# volumes:
+#   - /var/log/apache2/access.log:/var/log/apache2/access.log:ro
+
+# Si tu Apache está en otra ubicación, cambiar la ruta:
+# - /tu/ruta/personalizada/access.log:/var/log/apache2/access.log:ro
+
+# Guardar y cerrar (Ctrl+X, Y, Enter)
+```
+
+### Paso 5: Construir y Levantar Servicios
 
 ```bash
 # Construir imágenes y levantar todos los servicios
@@ -178,7 +245,53 @@ Default Bucket: network_traffic
 
 ## 🧪 Generar Tráfico de Prueba
 
-### Logs Normales
+### Opción 1: Tráfico Real en Apache (Recomendado)
+
+```bash
+# Generar tráfico web normal
+for i in {1..50}; do
+  curl http://localhost/ > /dev/null 2>&1
+  curl http://localhost/index.html > /dev/null 2>&1
+  sleep 0.5
+done
+
+# Verificar que se generaron logs
+sudo tail -10 /var/log/apache2/access.log
+
+# Generar tráfico variado
+curl http://localhost/test.html
+curl http://localhost/images/logo.png
+curl -X POST http://localhost/api/data
+curl http://localhost/admin
+curl http://localhost/favicon.ico
+
+# Ver logs del capturador procesando
+docker-compose logs -f capturador
+```
+
+### Opción 2: Simular Tráfico Anómalo
+
+```bash
+# Intentar acceder a archivos sensibles (404s)
+curl http://localhost/admin.php
+curl http://localhost/.env
+curl http://localhost/wp-admin
+curl http://localhost/phpmyadmin
+curl http://localhost/.git/config
+
+# Simular user agents sospechosos
+curl -A "sqlmap/1.0" http://localhost/
+curl -A "nikto/2.1.5" http://localhost/admin
+curl -A "nmap scripting engine" http://localhost/
+
+# Verificar detección
+docker-compose logs capturador | grep "ANOMALÍA"
+```
+
+### Opción 3: Insertar Logs Directamente (Para Pruebas Rápidas)
+
+```bash
+# Logs Normales
 
 ```bash
 # Generar 100 logs normales
@@ -302,26 +415,93 @@ docker-compose exec capturador top
 
 ```bash
 # Script de verificación completo
-echo "=== Verificando Servicios ==="
+echo "=== Verificando Apache ==="
+curl -I http://localhost 2>&1 | grep "HTTP" && echo "✓ Apache OK" || echo "✗ Apache FAIL"
+ls -l /var/log/apache2/access.log && echo "✓ Logs existen" || echo "✗ Logs no existen"
+
+echo -e "\n=== Verificando Servicios Docker ==="
 docker-compose ps
 
 echo -e "\n=== Verificando InfluxDB ==="
-curl -f http://localhost:8086/health && echo "✓ OK" || echo "✗ FAIL"
+curl -f http://localhost:8086/health 2>/dev/null && echo "✓ InfluxDB OK" || echo "✗ InfluxDB FAIL"
 
 echo -e "\n=== Verificando Prometheus ==="
-curl -f http://localhost:9090/-/healthy && echo "✓ OK" || echo "✗ FAIL"
+curl -f http://localhost:9090/-/healthy 2>/dev/null && echo "✓ Prometheus OK" || echo "✗ Prometheus FAIL"
 
 echo -e "\n=== Verificando Grafana ==="
-curl -f http://localhost:3000/api/health && echo "✓ OK" || echo "✗ FAIL"
+curl -f http://localhost:3000/api/health 2>/dev/null && echo "✓ Grafana OK" || echo "✗ Grafana FAIL"
 
 echo -e "\n=== Verificando Capturador ==="
-curl -f http://localhost:8000/metrics && echo "✓ OK" || echo "✗ FAIL"
+curl -f http://localhost:8000/metrics 2>/dev/null && echo "✓ Capturador OK" || echo "✗ Capturador FAIL"
 
 echo -e "\n=== Verificando Métricas ==="
-curl -s http://localhost:9090/api/v1/query?query=logs_procesados_total | jq -r '.data.result[0].value[1]'
+LOGS_COUNT=$(curl -s http://localhost:9090/api/v1/query?query=logs_procesados_total 2>/dev/null | grep -o '"value":\[[^]]*\]' | grep -o '[0-9.]*' | tail -1)
+echo "Logs procesados: $LOGS_COUNT"
+
+echo -e "\n=== Verificando Acceso a Logs desde Contenedor ==="
+docker-compose exec capturador cat /var/log/apache2/access.log | head -2 > /dev/null 2>&1 && echo "✓ Capturador puede leer logs" || echo "✗ Capturador NO puede leer logs"
 ```
 
 ### Problemas Comunes
+
+#### Apache no está instalado o no funciona
+
+```bash
+# Verificar si Apache está corriendo
+sudo systemctl status apache2
+
+# Si está detenido, iniciarlo
+sudo systemctl start apache2
+
+# Verificar que responde
+curl -I http://localhost
+
+# Si no responde, revisar logs de Apache
+sudo tail -50 /var/log/apache2/error.log
+
+# Reinstalar Apache si es necesario
+sudo apt purge apache2 -y
+sudo apt install apache2 -y
+sudo systemctl start apache2
+```
+
+#### Logs de Apache vacíos o no existen
+
+```bash
+# Verificar que el archivo existe
+ls -l /var/log/apache2/access.log
+
+# Si no existe, generar tráfico
+curl http://localhost/
+
+# Si sigue sin existir, verificar configuración de Apache
+sudo nano /etc/apache2/sites-available/000-default.conf
+
+# Debe tener estas líneas:
+# CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+# Reiniciar Apache
+sudo systemctl restart apache2
+
+# Generar tráfico nuevamente
+curl http://localhost/
+```
+
+#### Capturador no puede leer los logs
+
+```bash
+# Verificar permisos del archivo
+ls -l /var/log/apache2/access.log
+
+# Dar permisos de lectura
+sudo chmod 644 /var/log/apache2/access.log
+
+# Verificar desde el contenedor
+docker-compose exec capturador cat /var/log/apache2/access.log | head -5
+
+# Si dice "No such file", verificar el volumen en docker-compose.yml
+docker-compose exec capturador ls -l /var/log/apache2/
+```
 
 #### Servicio no inicia
 
@@ -390,10 +570,10 @@ nano MODELO_LOGS2.py
 python3 MODELO_LOGS2.py
 
 # Archivos generados:
-# - modelo_logs_3.h5
-# - scaler_logs_3.joblib
-# - encoders_logs_3.joblib
-# - grafico_entrenamiento_3.png
+# - modelo_logs_1.h5
+# - scaler_logs_1.joblib
+# - encoders_logs_1.joblib
+# - grafico_entrenamiento_1.png
 ```
 
 ### Usar Nuevo Modelo
@@ -466,6 +646,37 @@ docker-compose up -d --build capturador
 
 ## 💡 Recomendaciones
 
+### Apache
+
+```bash
+# 1. Rotar logs regularmente para evitar archivos enormes
+sudo nano /etc/logrotate.d/apache2
+
+# Configuración recomendada:
+# /var/log/apache2/*.log {
+#     daily
+#     rotate 14
+#     compress
+#     delaycompress
+#     notifempty
+#     create 640 root adm
+# }
+
+# 2. Monitorear tamaño de logs
+du -h /var/log/apache2/access.log
+
+# Si es > 1GB, rotar manualmente:
+sudo logrotate -f /etc/logrotate.d/apache2
+
+# 3. Habilitar mod_security (firewall de aplicaciones web)
+sudo apt install libapache2-mod-security2 -y
+sudo systemctl restart apache2
+
+# 4. Configurar Apache para logs más detallados (opcional)
+sudo nano /etc/apache2/apache2.conf
+# Cambiar LogLevel de 'warn' a 'info'
+```
+
 ### Seguridad
 
 ```bash
@@ -518,9 +729,9 @@ anomaly-detection-logs/
 ├── prometheus.yml              # Config Prometheus
 ├── capturador.py              # Detección ML
 ├── requirements.txt           # Dependencias
-├── modelo_logs_3.h5           # Modelo entrenado
-├── scaler_logs_3.joblib       # Scaler
-├── encoders_logs_3.joblib     # Encoders
+├── modelo_logs_1.h5           # Modelo entrenado
+├── scaler_logs_1.joblib       # Scaler
+├── encoders_logs_1.joblib     # Encoders
 ├── MODELO_LOGS2.py            # Entrenamiento
 └── LOGS_RANDOM.py             # Generador sintético
 ```
@@ -557,23 +768,39 @@ MIT License - Ver [LICENSE](LICENSE)
 **Quick Start**
 
 ```bash
+# 1. Instalar Apache
+sudo apt update && sudo apt install apache2 -y
+sudo systemctl start apache2
+
+# 2. Generar tráfico inicial
+curl http://localhost/
+
+# 3. Desplegar sistema
 git clone https://github.com/tu-usuario/anomaly-detection-logs.git
 cd anomaly-detection-logs
 docker-compose up -d --build
+
+# 4. Esperar 30 segundos
+sleep 30
+
+# 5. Verificar
+curl http://localhost:8000/metrics
 ```
 
-**Generar Tráfico de Prueba**
+**Generar Tráfico Real**
 
 ```bash
-for i in {1..50}; do docker-compose exec capturador bash -c "echo '192.168.1.$i - - [$(date -u +%d/%b/%Y:%H:%M:%S) +0000] \"GET /test HTTP/1.1\" 200 1500 \"-\" \"curl/7.68.0\"' >> /var/log/apache2/access.log"; sleep 0.5; done
+# Tráfico normal
+for i in {1..30}; do curl http://localhost/ > /dev/null 2>&1; sleep 0.5; done
+
+# Tráfico anómalo
+curl http://localhost/admin.php
+curl http://localhost/.env
+curl -A "sqlmap/1.0" http://localhost/
 ```
 
 **Ver Resultados en Grafana:** http://localhost:3000
 
 ---
 
-
-
 </div>
-
-
